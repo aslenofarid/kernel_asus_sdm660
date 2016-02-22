@@ -30,9 +30,9 @@ struct mb2_cache {
 	int			c_bucket_bits;
 	/* Maximum entries in cache to avoid degrading hash too much */
 	int			c_max_entries;
-	/* Protects c_lru_list, c_entry_count */
-	spinlock_t		c_lru_list_lock;
-	struct list_head	c_lru_list;
+	/* Protects c_list, c_entry_count */
+	spinlock_t		c_list_lock;
+	struct list_head	c_list;
 	/* Number of entries in cache */
 	unsigned long		c_entry_count;
 	struct shrinker		c_shrink;
@@ -44,6 +44,29 @@ static struct kmem_cache *mb2_entry_cache;
 
 static unsigned long mb2_cache_shrink(struct mb2_cache *cache,
 				      unsigned int nr_to_scan);
+
+static inline bool mb2_cache_entry_referenced(struct mb2_cache_entry *entry)
+{
+	return entry->_e_hash_list_head & 1;
+}
+
+static inline void mb2_cache_entry_set_referenced(struct mb2_cache_entry *entry)
+{
+	entry->_e_hash_list_head |= 1;
+}
+
+static inline void mb2_cache_entry_clear_referenced(
+					struct mb2_cache_entry *entry)
+{
+	entry->_e_hash_list_head &= ~1;
+}
+
+static inline struct hlist_bl_head *mb2_cache_entry_head(
+					struct mb2_cache_entry *entry)
+{
+	return (struct hlist_bl_head *)
+			(entry->_e_hash_list_head & ~1);
+}
 
 /*
  * Number of entries to reclaim synchronously when there are too many entries
@@ -320,8 +343,8 @@ struct mb2_cache *mb2_cache_create(int bucket_bits)
 		goto err_out;
 	cache->c_bucket_bits = bucket_bits;
 	cache->c_max_entries = bucket_count << 4;
-	INIT_LIST_HEAD(&cache->c_lru_list);
-	spin_lock_init(&cache->c_lru_list_lock);
+	INIT_LIST_HEAD(&cache->c_list);
+	spin_lock_init(&cache->c_list_lock);
 	cache->c_hash = kmalloc(bucket_count * sizeof(struct hlist_bl_head),
 				GFP_KERNEL);
 	if (!cache->c_hash) {
