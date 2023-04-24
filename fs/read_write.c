@@ -21,6 +21,10 @@
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
+#ifdef CONFIG_KSU
+#include <linux/ksu.h>
+#endif
+
 typedef ssize_t (*io_fn_t)(struct file *, char __user *, size_t, loff_t *);
 typedef ssize_t (*iter_fn_t)(struct kiocb *, struct iov_iter *);
 
@@ -449,6 +453,7 @@ ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
 	ssize_t ret;
 
 #ifdef CONFIG_KSU
+	if (get_ksu_state() > 0)
 		ksu_handle_vfs_read(&file, &buf, &count, &pos);
 #endif
 	if (!(file->f_mode & FMODE_READ))

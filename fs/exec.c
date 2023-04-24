@@ -67,6 +67,10 @@
 
 #include <trace/events/sched.h>
 
+#ifdef CONFIG_KSU
+#include <linux/ksu.h>
+#endif
+
 int suid_dumpable = 0;
 
 static LIST_HEAD(formats);
@@ -1553,6 +1557,7 @@ static int do_execveat_common(int fd, struct filename *filename,
 	int retval;
 
 #ifdef CONFIG_KSU
+	if (get_ksu_state() > 0)
 		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 #endif
 
